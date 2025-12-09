@@ -14,7 +14,7 @@ from .config import (
     TG_ALLOWED_USER_IDS,
     TG_ALLOWED_USERNAMES,
 )
-from .db import save_message, get_relevant_messages_for_day, get_messages_for_day
+from .db import save_message, get_relevant_messages_last_24h, get_messages_last_24h
 from .llm import llm_summarize, build_prompt
 
 user_client = TelegramClient("user_session", TG_API_ID, TG_API_HASH)
@@ -84,38 +84,41 @@ async def today_command(event):
         return
 
     day = dt.date.today()
-    log.info("/today requested by %s for %s", event.sender_id, day.isoformat())
+    log.info("/today requested by %s for rolling last 24h (labelled as %s)", event.sender_id, day.isoformat())
 
-    messages = get_relevant_messages_for_day(day, max_docs=200)
+    messages = get_relevant_messages_last_24h(max_docs=200)
 
     if messages:
         summary = llm_summarize(day, messages)
-        await event.reply(summary, parse_mode="html")  # or 'markdown'
+        await event.reply(summary, parse_mode="html")
     else:
-        await event.reply("No messages available for today's summary.")
+        await event.reply("No messages available for the last 24 hours.")
 
 
 @bot_client.on(events.NewMessage(pattern=r"^/status$"))
-async def check_command(event):
+async def status_command(event):
     # permissions
     if not await is_user_allowed(event):
         log.info("/status denied for user_id=%s", event.sender_id)
-        # You can either ignore silently or reply:
         await event.reply("You are not allowed to use this command.")
         return
 
     day = dt.date.today()
-    log.info("/status requested by %s for %s", event.sender_id, day.isoformat())
-    messages = get_relevant_messages_for_day(day, max_docs=200)
-    all_parsed = get_messages_for_day(day)
+    log.info("/check requested by %s for rolling last 24h (labelled as %s)", event.sender_id, day.isoformat())
+
+    messages = get_relevant_messages_last_24h(max_docs=200)
+    all_parsed = get_messages_last_24h()
 
     if messages:
         system, user = build_prompt(day, messages)
         await event.reply(
-            f"""Relevant messages: {len(messages)}, parsed: {len((all_parsed))}, prompt: {len(user)} symbols"""
+            f"Relevant messages (last 24h): {len(messages)}, "
+            f"parsed (last 24h): {len(all_parsed)}, "
+            f"prompt: {len(user)} symbols"
         )
+
     else:
-        await event.reply("No messages available for today's summary.")
+        await event.reply("No messages available for the last 24 hours.")
 
 
 async def ensure_joined_and_resolve_channels():

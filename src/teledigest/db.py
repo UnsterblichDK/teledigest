@@ -75,14 +75,13 @@ def save_message(msg_id: str, channel: str, date: dt.datetime, text: str):
     conn.commit()
     conn.close()
 
-
-def get_messages_for_day(day: dt.date, limit: int | None = None):
+def get_messages_for_range(start: dt.datetime, end: dt.datetime, limit: int | None = None):
     """
-    Fallback: simple 'all messages for the day' from main table,
+    Generic helper: get all messages in [start, end] from main table,
     optionally limited.
     """
-    start = dt.datetime.combine(day, dt.time.min).isoformat()
-    end = dt.datetime.combine(day, dt.time.max).isoformat()
+    start_iso = start.isoformat()
+    end_iso = end.isoformat()
 
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -95,29 +94,37 @@ def get_messages_for_day(day: dt.date, limit: int | None = None):
     if limit is not None:
         sql += f" LIMIT {int(limit)}"
 
-    cur.execute(sql, (start, end))
+    cur.execute(sql, (start_iso, end_iso))
     rows = cur.fetchall()
     conn.close()
     return rows
 
 
-def get_relevant_messages_for_day(day: dt.date, max_docs: int = 200):
+def get_messages_for_day(day: dt.date, limit: int | None = None):
     """
-    RAG-style retrieval:
-    Use the FTS index to get the most relevant messages for today's
-    'important news' queries instead of sending everything to the LLM.
-
-    If FTS5 is not available or returns nothing, falls back to
-    get_messages_for_day(day, limit=max_docs).
+    Backwards-compatible helper: still used if you ever want pure 'calendar day'
+    behaviour. Now implemented via get_messages_for_range().
     """
-    start = dt.datetime.combine(day, dt.time.min).isoformat()
-    end = dt.datetime.combine(day, dt.time.max).isoformat()
+    start = dt.datetime.combine(day, dt.time.min)
+    end = dt.datetime.combine(day, dt.time.max)
+    return get_messages_for_range(start, end, limit)
 
-    # Query tuned for 'important news' (Ukr/Eng mix; tweak as you like)
+
+def get_relevant_messages_for_range(
+    start: dt.datetime,
+    end: dt.datetime,
+    max_docs: int = 200,
+):
+    """
+    RAG-style retrieval for an arbitrary time range [start, end].
+    Uses FTS index when available, falls back to simple scan.
+    """
+    start_iso = start.isoformat()
+    end_iso = end.isoformat()
+
+    # Query tuned for 'important news'
     query = (
-        # ===============================
-        # 🇺🇦 Ukrainian — war, politics
-        # ===============================
+        # 🇺🇦 Ukrainian - war, politics
         "війна OR наступ* OR контрнаступ* OR фронт OR лінія OR оборон* "
         "OR штурм* OR артилер* OR обстріл* OR удар* OR ракета* OR безпілотн* "
         "OR дрон* OR ППО OR мобілізац* OR призов* OR резерв* OR втрат* "
@@ -125,11 +132,10 @@ def get_relevant_messages_for_day(day: dt.date, max_docs: int = 200):
         "OR санкц* OR економік* OR енергетик* OR ринок* OR бюджет* "
         "OR НАТО OR ЄС OR Європейськ* OR допомог* OR підтримк* "
         "OR переговор* OR дипломат* "
-        # Key persons UA
+
         "OR Зеленськ* OR Умеров OR Умєров "
-        # ===============================
-        # 🇷🇺 Russian — war, politics
-        # ===============================
+
+        # 🇷🇺 Russian - war, politics
         "OR войн* OR наступлен* OR контрнаступ* OR фронт OR линия "
         "OR оборон* OR штурм* OR артилл* OR обстрел* OR удар* OR ракет* "
         "OR беспилотн* OR дрон* OR ПВО OR мобилизац* OR призыв OR резерв* "
@@ -137,11 +143,10 @@ def get_relevant_messages_for_day(day: dt.date, max_docs: int = 200):
         "OR санкц* OR экономик* OR энергетик* OR бюджет* OR рынок* "
         "OR НАТО OR ЕС OR Европейск* OR помощ* OR поддержк* "
         "OR переговор* OR дипломат* "
-        # Key persons RU
+
         "OR Зеленск* OR Умеров "
-        # ===============================
-        # 🇬🇧 English — war, geopolitics
-        # ===============================
+
+        # 🇬🇧 English - war, geopolitics
         "OR war OR offensive OR counteroffensive OR front OR frontline "
         "OR defense OR assault OR artillery OR shell* OR strike* OR attack* "
         "OR missile* OR drone* OR UAV OR air OR defense OR mobilization "
@@ -149,7 +154,7 @@ def get_relevant_messages_for_day(day: dt.date, max_docs: int = 200):
         "OR sanctions OR economy OR energy OR market OR budget "
         "OR NATO OR EU OR European OR aid OR support "
         "OR negotiations OR diplomacy "
-        # Key persons EN
+
         "OR Zelensky OR Zelenskiy OR Zelenskyy OR Umerov"
     )
 
@@ -165,28 +170,53 @@ def get_relevant_messages_for_day(day: dt.date, max_docs: int = 200):
             ORDER BY date ASC
             LIMIT {int(max_docs)}
         """
-        cur.execute(sql, (query, start, end))
+        cur.execute(sql, (query, start_iso, end_iso))
         rows = cur.fetchall()
         conn.close()
 
         if rows:
             log.info(
-                "FTS retrieval for %s returned %d messages (max %d).",
-                day.isoformat(),
-                len(rows),
-                max_docs,
+                "FTS retrieval for %s - %s returned %d messages (max %d).",
+                start_iso, end_iso, len(rows), max_docs
             )
             return rows
         else:
             log.info(
-                "FTS retrieval returned 0 rows for %s – falling back to simple day range.",
-                day.isoformat(),
+                "FTS retrieval returned 0 rows for %s - %s - falling back to simple range.",
+                start_iso, end_iso
             )
 
     except sqlite3.OperationalError as e:
         # Happens when FTS5 is not available
-        log.warning("FTS retrieval failed (%s). Falling back to full day scan.", e)
+        log.warning("FTS retrieval failed (%s). Falling back to full range scan.", e)
         conn.close()
 
     # Fallback: simple scan limited to max_docs
-    return get_messages_for_day(day, limit=max_docs)
+    return get_messages_for_range(start, end, limit=max_docs)
+
+
+def get_relevant_messages_for_day(day: dt.date, max_docs: int = 200):
+    """
+    Backwards-compatible wrapper using a calendar day.
+    """
+    start = dt.datetime.combine(day, dt.time.min)
+    end = dt.datetime.combine(day, dt.time.max)
+    return get_relevant_messages_for_range(start, end, max_docs)
+
+
+def get_messages_last_24h(limit: int | None = None):
+    """
+    All messages from the last 24 hours (rolling window), in UTC.
+    """
+    now = dt.datetime.now(dt.timezone.utc)
+    start = now - dt.timedelta(hours=24)
+    return get_messages_for_range(start, now, limit)
+
+
+def get_relevant_messages_last_24h(max_docs: int = 200):
+    """
+    RAG-style retrieval for the last 24 hours (rolling window), in UTC.
+    """
+    now = dt.datetime.now(dt.timezone.utc)
+    start = now - dt.timedelta(hours=24)
+    return get_relevant_messages_for_range(start, now, max_docs)

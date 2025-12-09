@@ -3,7 +3,7 @@ import datetime as dt
 from telethon.errors import RPCError
 
 from .config import SUMMARY_TARGET, SUMMARY_HOUR, log
-from .db import get_relevant_messages_for_day
+from .db import get_relevant_messages_last_24h
 from .llm import llm_summarize
 from .telegram_client import bot_client
 
@@ -22,19 +22,22 @@ async def summary_scheduler():
                 await asyncio.sleep(60)
                 continue
 
-            log.info("Time to generate daily summary for %s", today.isoformat())
-            messages = get_relevant_messages_for_day(today, max_docs=200)
+            log.info(
+                "Time to generate rolling 24h summary ending %s (labelled as %s)",
+                now.isoformat(), today.isoformat()
+            )
+            messages = get_relevant_messages_last_24h(max_docs=200)
 
             if messages:
                 summary = llm_summarize(today, messages)
             else:
-                summary = f"No messages to summarize for {today.isoformat()}."
+                summary = f"No messages to summarize for the last 24 hours (labelled as {today.isoformat()})."
 
             try:
                 await bot_client.send_message(
                     SUMMARY_TARGET,
                     summary,
-                    parse_mode="html",  # or 'markdown'
+                    parse_mode="html",
                 )
                 log.info("Daily summary sent to %s", SUMMARY_TARGET)
             except RPCError as e:
