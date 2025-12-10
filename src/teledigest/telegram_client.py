@@ -2,19 +2,18 @@ import asyncio
 import datetime as dt
 
 from telethon import TelegramClient, events
-from telethon.errors import RPCError
 from telethon.tl.functions.channels import JoinChannelRequest
 
-from .config import log, get_config
-from .db import save_message, get_relevant_messages_last_24h, get_messages_last_24h
-from .llm import llm_summarize, build_prompt
+from .config import get_config, log
+from .db import get_messages_last_24h, get_relevant_messages_last_24h, save_message
+from .llm import build_prompt, llm_summarize
 
 user_client: TelegramClient | None = None
 bot_client: TelegramClient | None = None
 
 # We'll store numeric chat IDs of channels we care about
-scraped_chat_ids = set()
-chat_id_to_name = {}
+scraped_chat_ids: set[int] = set()
+chat_id_to_name: dict[int, str] = {}
 
 
 async def channel_message_handler(event):
@@ -86,7 +85,11 @@ async def today_command(event):
         return
 
     day = dt.date.today()
-    log.info("/today requested by %s for rolling last 24h (labelled as %s)", event.sender_id, day.isoformat())
+    log.info(
+        "/today requested by %s for rolling last 24h (labelled as %s)",
+        event.sender_id,
+        day.isoformat(),
+    )
 
     messages = get_relevant_messages_last_24h(max_docs=200)
 
@@ -105,7 +108,11 @@ async def status_command(event):
         return
 
     day = dt.date.today()
-    log.info("/check requested by %s for rolling last 24h (labelled as %s)", event.sender_id, day.isoformat())
+    log.info(
+        "/check requested by %s for rolling last 24h (labelled as %s)",
+        event.sender_id,
+        day.isoformat(),
+    )
 
     messages = get_relevant_messages_last_24h(max_docs=200)
     all_parsed = get_messages_last_24h()
@@ -161,6 +168,7 @@ async def ensure_joined_and_resolve_channels():
         except Exception as e:
             log.warning("User account cannot resolve %s: %s", ch, e)
 
+
 async def create_clients():
     global user_client, bot_client
 
@@ -169,10 +177,16 @@ async def create_clients():
 
     cfg = get_config()
 
-    user_client = TelegramClient("user_session", cfg.telegram.api_id, cfg.telegram.api_hash)
-    bot_client = TelegramClient("bot_session", cfg.telegram.api_id, cfg.telegram.api_hash)
+    user_client = TelegramClient(
+        "user_session", cfg.telegram.api_id, cfg.telegram.api_hash
+    )
+    bot_client = TelegramClient(
+        "bot_session", cfg.telegram.api_id, cfg.telegram.api_hash
+    )
 
-    bot_client.add_event_handler(status_command, events.NewMessage(pattern=r"^/status$"))
+    bot_client.add_event_handler(
+        status_command, events.NewMessage(pattern=r"^/status$")
+    )
     bot_client.add_event_handler(today_command, events.NewMessage(pattern=r"^/today$"))
     bot_client.add_event_handler(ping_command, events.NewMessage(pattern=r"^/ping$"))
 

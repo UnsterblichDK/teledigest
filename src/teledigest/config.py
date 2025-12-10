@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import os
-import sys
 import logging
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import tomllib
 
 from platformdirs import user_config_dir
-
 
 APP_NAME = "teledigest"
 APP_AUTHOR = "Igor Opaniuk"  # optional, used on Windows
@@ -21,8 +18,12 @@ class TelegramConfig:
     api_hash: str
     bot_token: str
 
+
 _DEFAULT_SYSTEM_PROMPT = """You are a helpful assistant that summarizes Telegram messages into a concise digest."""
-_DEFAULT_USER_PROMPT = """Summarize the following Telegram messages for {DAY}:\n\n{MESSAGES}"""
+_DEFAULT_USER_PROMPT = (
+    """Summarize the following Telegram messages for {DAY}:\n\n{MESSAGES}"""
+)
+
 
 @dataclass
 class LLMConfig:
@@ -30,6 +31,7 @@ class LLMConfig:
     token: str
     system_prompt: str
     user_prompt: str
+
 
 @dataclass
 class BotConfig:
@@ -56,8 +58,8 @@ class AppConfig:
     telegram: TelegramConfig
     bot: BotConfig
     llm: LLMConfig
-    storage: StorageConfig = field(default_factory=StorageConfig)
-    logging: LoggingConfig = field(default_factory=LoggingConfig)
+    storage: StorageConfig = field(default_factory=lambda: StorageConfig([]))
+    logging: LoggingConfig = field(default_factory=lambda: LoggingConfig())
 
 
 _CONFIG: Optional[AppConfig] = None
@@ -84,6 +86,7 @@ def _load_toml(path: Path) -> Dict[str, Any]:
     with path.open("rb") as f:
         data = tomllib.load(f)
     return data
+
 
 def _locate_config_path(
     explicit_path: Optional[Path] = None,
@@ -154,8 +157,8 @@ def _parse_app_config(raw: Dict[str, Any]) -> AppConfig:
     llm = LLMConfig(
         token=str(llm_raw.get("token", "")),
         model=str(llm_raw.get("model", "gpt-5.1")),
-        system_prompt = str(prompts_raw.get("system", _DEFAULT_SYSTEM_PROMPT)),
-        user_prompt = str(prompts_raw.get("user", _DEFAULT_USER_PROMPT)),
+        system_prompt=str(prompts_raw.get("system", _DEFAULT_SYSTEM_PROMPT)),
+        user_prompt=str(prompts_raw.get("user", _DEFAULT_USER_PROMPT)),
     )
 
     if not llm.token:
@@ -190,6 +193,7 @@ def init_config(
     _configure_logging(_CONFIG.logging)
 
     return _CONFIG
+
 
 def get_config() -> AppConfig:
     """

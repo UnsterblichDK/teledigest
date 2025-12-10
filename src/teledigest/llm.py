@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import datetime as dt
+
 import openai
-from .config import log, get_config
+
+from .config import get_config, log
+
 
 def build_prompt(day: dt.date, messages):
     if not messages:
@@ -70,7 +73,7 @@ def llm_summarize(day: dt.date, messages):
     log.info("Calling OpenAI for summary (%d messages)...", len(messages))
 
     try:
-        response = openai.ChatCompletion.create(
+        response = openai.ChatCompletion.create(  # type: ignore[attr-defined]
             model=get_config().llm.model,
             messages=[
                 {"role": "system", "content": system},

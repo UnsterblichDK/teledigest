@@ -1,5 +1,6 @@
 import asyncio
 import datetime as dt
+
 from telethon.errors import RPCError
 
 from .config import get_config, log
@@ -27,7 +28,8 @@ async def summary_scheduler():
 
             log.info(
                 "Time to generate rolling 24h summary ending %s (labelled as %s)",
-                now.isoformat(), today.isoformat()
+                now.isoformat(),
+                today.isoformat(),
             )
             messages = get_relevant_messages_last_24h(max_docs=200)
 

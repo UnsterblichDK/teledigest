@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import sqlite3
+
 from .config import get_config, log
 
 
@@ -76,7 +77,10 @@ def save_message(msg_id: str, channel: str, date: dt.datetime, text: str):
     conn.commit()
     conn.close()
 
-def get_messages_for_range(start: dt.datetime, end: dt.datetime, limit: int | None = None):
+
+def get_messages_for_range(
+    start: dt.datetime, end: dt.datetime, limit: int | None = None
+):
     """
     Generic helper: get all messages in [start, end] from main table,
     optionally limited.
@@ -110,6 +114,7 @@ def get_messages_for_day(day: dt.date, limit: int | None = None):
     end = dt.datetime.combine(day, dt.time.max)
     return get_messages_for_range(start, end, limit)
 
+
 def build_fts_query() -> str:
     """
     Convert a list of keywords into a single FTS5 MATCH query.
@@ -126,6 +131,7 @@ def build_fts_query() -> str:
 
     # Join with OR operator
     return " OR ".join(parts)
+
 
 def get_relevant_messages_for_range(
     start: dt.datetime,
@@ -161,13 +167,17 @@ def get_relevant_messages_for_range(
         if rows:
             log.info(
                 "FTS retrieval for %s - %s returned %d messages (max %d).",
-                start_iso, end_iso, len(rows), max_docs
+                start_iso,
+                end_iso,
+                len(rows),
+                max_docs,
             )
             return rows
         else:
             log.info(
                 "FTS retrieval returned 0 rows for %s - %s - falling back to simple range.",
-                start_iso, end_iso
+                start_iso,
+                end_iso,
             )
 
     except sqlite3.OperationalError as e:

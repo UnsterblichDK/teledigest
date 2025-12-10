@@ -3,10 +3,11 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from .telegram_client import create_clients, start_clients, run_clients
-from .scheduler import summary_scheduler
+from .config import init_config, log
 from .db import init_db
-from .config import log, init_config
+from .scheduler import summary_scheduler
+from .telegram_client import create_clients, run_clients, start_clients
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -19,6 +20,7 @@ def parse_args() -> argparse.Namespace:
         help="Path to config.toml (overrides default location)",
     )
     return parser.parse_args()
+
 
 async def _run(config_path: Path | None) -> None:
     init_config(config_path)
