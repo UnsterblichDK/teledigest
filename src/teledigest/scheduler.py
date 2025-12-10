@@ -6,11 +6,13 @@ from telethon.errors import RPCError
 from .config import get_config, log
 from .db import get_relevant_messages_last_24h
 from .llm import llm_summarize
-from .telegram_client import bot_client
+from .telegram_client import get_bot_client
 
 
 async def summary_scheduler():
     cfg = get_config()
+
+    bot_client = get_bot_client()
     summary_target = cfg.bot.summary_target
     summary_hour = cfg.bot.summary_hour
     log.info("Summary target channel (bot will post here): %s", summary_target)

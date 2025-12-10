@@ -194,6 +194,8 @@ async def create_clients():
 
 
 async def start_clients():
+    global user_client, bot_client
+
     cfg = get_config()
     log.info("Starting user & bot clients...")
     log.info("Channels to scrape (user account): %s", ", ".join(cfg.bot.channels))
@@ -210,7 +212,15 @@ async def start_clients():
 
 
 async def run_clients():
+    global user_client, bot_client
+
     # Keep the clients running
     await asyncio.gather(
         user_client.run_until_disconnected(), bot_client.run_until_disconnected()
     )
+
+
+def get_bot_client() -> TelegramClient:
+    if bot_client is None:
+        raise RuntimeError("Bot client not initialized — call create_clients() first.")
+    return bot_client
