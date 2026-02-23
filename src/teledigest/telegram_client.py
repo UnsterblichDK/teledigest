@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from telethon import TelegramClient, events
+from telethon import TelegramClient, events, functions, types
 from telethon.errors import SessionPasswordNeededError
 from telethon.tl.functions.channels import JoinChannelRequest
 
@@ -382,6 +382,26 @@ async def create_clients():
     user_client.add_event_handler(channel_message_handler, events.NewMessage)
 
 
+async def set_bot_menu_commands(client: TelegramClient) -> None:
+    """
+    Set the bot's menu commands for easy access in the Telegram UI.
+    """
+    await client(
+        functions.bots.SetBotCommandsRequest(
+            scope=types.BotCommandScopeDefault(),
+            lang_code="en",
+            commands=[
+                types.BotCommand(command="status", description="Check system status"),
+                types.BotCommand(
+                    command="today", description="Request today's summary"
+                ),
+                types.BotCommand(command="help", description="Get help info"),
+                types.BotCommand(command="auth", description="Set authentication"),
+            ],
+        )
+    )
+
+
 async def start_clients(auth_only: bool = False) -> None:
     """
     Start Telegram clients.
@@ -415,6 +435,7 @@ async def start_clients(auth_only: bool = False) -> None:
         await ensure_joined_and_resolve_channels()
 
     await bot_client.start(bot_token=cfg.telegram.bot_token)
+    await set_bot_menu_commands(bot_client)
     log.info("Bot client started (logged in as bot).")
 
 
